@@ -1,0 +1,9 @@
+name = "clean-bug-report-tickets"
+main = "index.mjs"
+compatibility_date = "2026-11-26"
+workers_dev = true
+preview_urls = false
+
+[vars]
+SITE_ORIGIN = "https://aa-blinov.github.io"
+ALLOWED_REPOS = "aa-blinov/clean-bug-report,aa-blinov/cast,aa-blinov/lazy-to-text,aa-blinov/petzy,aa-blinov/cronator,aa-blinov/bitrix-flow,aa-blinov/precision-block-stack"

@@ -66,6 +66,11 @@
   let previewTab = 'slack';
   let copiedFormat = '';
   let copiedTimer = null;
+  let submitting = false;
+  let createdIssue = null;
+  let honeypot = '';
+
+  const TICKETS_API_URL = import.meta.env.VITE_TICKETS_API_URL || '';
 
   const urlRepo =
     typeof window !== 'undefined'
@@ -74,6 +79,7 @@
   const presetMatch = REPO_OPTIONS.some((o) => o.value === urlRepo && o.value !== 'custom');
   let selectedRepo = urlRepo ? (presetMatch ? urlRepo : 'custom') : REPO_OPTIONS[0].value;
   let customRepo = urlRepo && !presetMatch ? urlRepo : '';
+  let showRepoPicker = !urlRepo;
 
   $: {
     try {
@@ -154,17 +160,68 @@
     toast({ title: 'Updated browser, viewport & timezone', duration: 2000 });
   }
 
-  function openGitHubIssue() {
+  async function submitTicket() {
     if (!githubIssueUrl) {
       toast({
         title: 'Invalid repository slug',
-        description: 'Use owner/repo format, e.g. aa-blinov/cast.',
+        description: 'Use owner/repo format, e.g. aa-blinov/clean-bug-report.',
         tone: 'danger',
         duration: 2800
       });
       return;
     }
-    window.open(githubIssueUrl, '_blank', 'noopener,noreferrer');
+
+    if (!TICKETS_API_URL) {
+      window.open(githubIssueUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    if (!completeness.ready) {
+      toast({
+        title: 'Fill in required fields first',
+        description: `Missing: ${completeness.missing.join(', ')}`,
+        tone: 'warning',
+        duration: 2800
+      });
+      return;
+    }
+
+    submitting = true;
+    createdIssue = null;
+    try {
+      const res = await fetch(TICKETS_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repo: targetRepo,
+          title: `[${report.severity.toUpperCase()}] ${report.title.trim()}`,
+          body: markdownOutput,
+          labels: ['bug'],
+          website: honeypot
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      createdIssue = { number: data.number, url: data.url };
+      toast({
+        title: `Ticket #${data.number} created`,
+        description: `Filed into ${targetRepo}.`,
+        tone: 'success',
+        duration: 3500
+      });
+    } catch (err) {
+      toast({
+        title: 'Direct submit failed — opening GitHub',
+        description: err instanceof Error ? err.message : 'Falling back to pre-filled GitHub Issue.',
+        tone: 'warning',
+        duration: 3200
+      });
+      window.open(githubIssueUrl, '_blank', 'noopener,noreferrer');
+    } finally {
+      submitting = false;
+    }
   }
 
   async function copyText(text, kind) {
@@ -450,58 +507,98 @@
             {/if}
           </div>
 
-          <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+          <div class="space-y-2.5 rounded-ui border border-line bg-canvas p-3">
+            {#if showRepoPicker}
+              <SelectField
+                label="Target GitHub repository"
+                variant="outline"
+                size="sm"
+                options={REPO_OPTIONS}
+                bind:value={selectedRepo}
+              />
+              {#if selectedRepo === 'custom'}
+                <TextField
+                  label="Custom owner/repo"
+                  variant="outline"
+                  size="sm"
+                  placeholder="owner/repository"
+                  bind:value={customRepo}
+                />
+              {/if}
+            {:else}
+              <div class="flex items-center justify-between gap-2 text-xs">
+                <span class="text-ink-soft">
+                  Filing into <strong class="font-mono text-ink">{targetRepo}</strong>
+                </span>
+                <Button variant="ghost" size="sm" on:click={() => (showRepoPicker = true)}>
+                  Change
+                </Button>
+              </div>
+            {/if}
+
+            <input
+              type="text"
+              tabindex="-1"
+              autocomplete="off"
+              aria-hidden="true"
+              class="hidden"
+              bind:value={honeypot}
+            />
+
             <Button
               variant="primary"
               size="md"
               full
+              loading={submitting}
+              on:click={submitTicket}
+            >
+              <ExternalLink class="h-4 w-4 shrink-0" />
+              <span>{TICKETS_API_URL ? 'Create Ticket' : 'Create Ticket on GitHub'}</span>
+            </Button>
+
+            {#if createdIssue}
+              <Notice tone="success" title="Ticket #{createdIssue.number} created">
+                <a
+                  href={createdIssue.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="underline hover:opacity-80"
+                >
+                  Open issue in {targetRepo}
+                </a>
+              </Notice>
+            {/if}
+          </div>
+
+          <div class="grid grid-cols-2 gap-2.5">
+            <Button
+              variant="secondary"
+              size="sm"
+              full
               on:click={() => copyText(slackOutput, 'slack')}
             >
               {#if copiedFormat === 'slack'}
-                <Check class="h-4 w-4 shrink-0" />
+                <Check class="h-3.5 w-3.5 shrink-0" />
                 <span>Copied Slack!</span>
               {:else}
-                <MessageSquare class="h-4 w-4 shrink-0" />
+                <MessageSquare class="h-3.5 w-3.5 shrink-0" />
                 <span>Copy Slack</span>
               {/if}
             </Button>
 
             <Button
               variant="secondary"
-              size="md"
+              size="sm"
               full
               on:click={() => copyText(markdownOutput, 'markdown')}
             >
               {#if copiedFormat === 'markdown'}
-                <Check class="h-4 w-4 shrink-0" />
+                <Check class="h-3.5 w-3.5 shrink-0" />
                 <span>Copied MD!</span>
               {:else}
-                <FileText class="h-4 w-4 shrink-0" />
+                <FileText class="h-3.5 w-3.5 shrink-0" />
                 <span>Copy Markdown</span>
               {/if}
-            </Button>
-          </div>
-
-          <div class="space-y-2.5 rounded-ui border border-line bg-canvas p-3">
-            <SelectField
-              label="Target GitHub repository"
-              variant="outline"
-              size="sm"
-              options={REPO_OPTIONS}
-              bind:value={selectedRepo}
-            />
-            {#if selectedRepo === 'custom'}
-              <TextField
-                label="Custom owner/repo"
-                variant="outline"
-                size="sm"
-                placeholder="owner/repository"
-                bind:value={customRepo}
-              />
-            {/if}
-            <Button variant="secondary" size="sm" full on:click={openGitHubIssue}>
-              <ExternalLink class="h-3.5 w-3.5 shrink-0" />
-              <span>Open GitHub Issue</span>
             </Button>
           </div>
 
