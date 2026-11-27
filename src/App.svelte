@@ -1,0 +1,473 @@
+<script>
+  import {
+    Badge,
+    Button,
+    Card,
+    Notice,
+    SegmentedControl,
+    SelectField,
+    Separator,
+    Tabs,
+    TextArea,
+    TextField,
+    Toaster,
+    toast
+  } from '@monos/ui';
+  import {
+    Check,
+    Copy,
+    ExternalLink,
+    FileText,
+    MessageSquare,
+    Moon,
+    Plus,
+    RotateCcw,
+    Sparkles,
+    Sun,
+    Trash2
+  } from 'lucide-svelte';
+  import {
+    ENV_OPTIONS,
+    EXAMPLE_REPORT,
+    REPO_OPTIONS,
+    REPRO_RATE_OPTIONS,
+    SEVERITY_OPTIONS,
+    buildGitHubIssueUrl,
+    buildMarkdown,
+    buildSlackSummary,
+    createEmptyReport,
+    detectDeviceSummary,
+    detectTimezone,
+    getCompleteness
+  } from './lib/formatters.js';
+
+  let mode = 'light';
+  let report = createEmptyReport();
+  let previewTab = 'slack';
+  let copiedFormat = '';
+  let copiedTimer = null;
+
+  const urlRepo =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('repo')?.trim() || ''
+      : '';
+  const presetMatch = REPO_OPTIONS.some((o) => o.value === urlRepo && o.value !== 'custom');
+  let selectedRepo = urlRepo ? (presetMatch ? urlRepo : 'custom') : REPO_OPTIONS[0].value;
+  let customRepo = urlRepo && !presetMatch ? urlRepo : '';
+
+  $: targetRepo = selectedRepo === 'custom' ? customRepo : selectedRepo;
+  $: githubIssueUrl = buildGitHubIssueUrl(report, targetRepo);
+  $: markdownOutput = buildMarkdown(report);
+  $: slackOutput = buildSlackSummary(report);
+  $: completeness = getCompleteness(report);
+
+  const previewTabs = [
+    { id: 'slack', label: 'Slack Summary' },
+    { id: 'markdown', label: 'Markdown' }
+  ];
+
+  function toggleMode() {
+    mode = mode === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-mode', mode);
+  }
+
+  function addStep() {
+    report.steps = [...report.steps, ''];
+  }
+
+  function removeStep(index) {
+    if (report.steps.length <= 1) {
+      report.steps = [''];
+      return;
+    }
+    report.steps = report.steps.filter((_, i) => i !== index);
+  }
+
+  function updateStep(index, value) {
+    const next = [...report.steps];
+    next[index] = value;
+    report.steps = next;
+  }
+
+  function loadExample() {
+    report = {
+      ...EXAMPLE_REPORT,
+      steps: [...EXAMPLE_REPORT.steps]
+    };
+    toast({ title: 'Loaded async team example', tone: 'info', duration: 2200 });
+  }
+
+  function resetForm() {
+    report = createEmptyReport();
+    toast({ title: 'Cleared form', duration: 1800 });
+  }
+
+  function autoDetectEnv() {
+    report.device = detectDeviceSummary();
+    report.timezone = detectTimezone();
+    toast({ title: 'Updated browser, viewport & timezone', duration: 2000 });
+  }
+
+  function openGitHubIssue() {
+    if (!githubIssueUrl) {
+      toast({
+        title: 'Invalid repository slug',
+        description: 'Use owner/repo format, e.g. aa-blinov/cast.',
+        tone: 'danger',
+        duration: 2800
+      });
+      return;
+    }
+    window.open(githubIssueUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  async function copyText(text, kind) {
+    try {
+      await navigator.clipboard.writeText(text);
+      copiedFormat = kind;
+      if (copiedTimer) clearTimeout(copiedTimer);
+      copiedTimer = setTimeout(() => {
+        copiedFormat = '';
+      }, 1800);
+      toast({
+        title: kind === 'slack' ? 'Slack summary copied' : 'Markdown copied',
+        description: completeness.ready
+          ? 'Ready to paste into Slack or an issue tracker.'
+          : `Copied, though ${completeness.missing.join(', ')} still empty.`,
+        tone: completeness.ready ? 'success' : 'warning',
+        duration: 2800
+      });
+    } catch {
+      toast({
+        title: 'Clipboard access blocked',
+        description: 'Select the preview text manually to copy.',
+        tone: 'danger',
+        duration: 3200
+      });
+    }
+  }
+</script>
+
+<div class="min-h-screen bg-canvas text-ink">
+  <header class="sticky top-0 z-menu border-b border-line bg-canvas">
+    <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2">
+          <h1 class="truncate text-base font-semibold tracking-tight text-ink sm:text-lg">
+            Clean Bug Report
+          </h1>
+          <span class="hidden sm:inline-flex">
+            <Badge tone="neutral">Async Teams</Badge>
+          </span>
+        </div>
+        <p class="hidden text-xs text-ink-soft sm:block">
+          Structured repro steps, expected vs actual, and one-click Slack &amp; Markdown handoff.
+        </p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <Button variant="ghost" size="sm" on:click={loadExample}>
+          <Sparkles class="h-3.5 w-3.5" />
+          <span>Example</span>
+        </Button>
+        <Button variant="ghost" size="sm" on:click={resetForm}>
+          <RotateCcw class="h-3.5 w-3.5" />
+          <span class="hidden sm:inline">Reset</span>
+        </Button>
+        <Button variant="secondary" size="sm" on:click={toggleMode} aria-label="Toggle color mode">
+          {#if mode === 'light'}
+            <Moon class="h-3.5 w-3.5" />
+          {:else}
+            <Sun class="h-3.5 w-3.5" />
+          {/if}
+        </Button>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto grid max-w-6xl grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)] lg:items-start">
+    <section aria-label="Bug report form" class="space-y-4">
+      <Card padding="lg">
+        <div class="space-y-5">
+          <div class="flex items-center justify-between gap-2">
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-ink-soft">
+              1. Summary &amp; Impact
+            </h2>
+            <Badge tone={completeness.ready ? 'success' : 'warning'}>
+              {completeness.filled}/{completeness.total} core fields
+            </Badge>
+          </div>
+
+          <TextField
+            label="Bug title"
+            required
+            variant="outline"
+            placeholder="e.g. Checkout button stays disabled after 100% promo code"
+            bind:value={report.title}
+          />
+
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <span class="mb-1.5 block text-xs font-medium text-ink-soft">Severity</span>
+              <SegmentedControl
+                options={SEVERITY_OPTIONS}
+                bind:value={report.severity}
+                label="Severity"
+                size="sm"
+                full
+              />
+            </div>
+
+            <div>
+              <span class="mb-1.5 block text-xs font-medium text-ink-soft">Reproducibility</span>
+              <SegmentedControl
+                options={REPRO_RATE_OPTIONS}
+                bind:value={report.reproducibility}
+                label="Reproducibility"
+                size="sm"
+                full
+              />
+            </div>
+          </div>
+
+          <TextField
+            label="Area / Feature"
+            variant="outline"
+            placeholder="e.g. Billing / Checkout"
+            bind:value={report.area}
+          />
+        </div>
+      </Card>
+
+      <Card padding="lg">
+        <div class="space-y-4">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <h2 class="text-sm font-semibold uppercase tracking-wider text-ink-soft">
+                2. Steps to Reproduce
+              </h2>
+              <p class="mt-0.5 text-xs text-ink-faint">
+                Write exact clicks or commands so a teammate in another timezone can verify without asking.
+              </p>
+            </div>
+            <Button variant="secondary" size="sm" on:click={addStep}>
+              <Plus class="h-3.5 w-3.5" />
+              <span>Add step</span>
+            </Button>
+          </div>
+
+          <div class="space-y-2.5">
+            {#each report.steps as step, i (i)}
+              <div class="flex items-center gap-2">
+                <span class="w-6 shrink-0 text-right font-mono text-xs text-ink-faint">
+                  {i + 1}.
+                </span>
+                <div class="min-w-0 flex-1">
+                  <TextField
+                    variant="outline"
+                    size="sm"
+                    placeholder={i === 0 ? 'Navigate to...' : i === 1 ? 'Click or enter...' : 'Observe...'}
+                    value={step}
+                    on:input={(e) => {
+                      const target = /** @type {HTMLInputElement} */ (e.currentTarget || e.target);
+                      updateStep(i, target?.value ?? '');
+                    }}
+                  />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  on:click={() => removeStep(i)}
+                  aria-label="Remove step {i + 1}"
+                >
+                  <Trash2 class="h-3.5 w-3.5 text-ink-faint" />
+                </Button>
+              </div>
+            {/each}
+          </div>
+        </div>
+      </Card>
+
+      <Card padding="lg">
+        <div class="space-y-4">
+          <h2 class="text-sm font-semibold uppercase tracking-wider text-ink-soft">
+            3. Expected vs Actual
+          </h2>
+
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <TextArea
+              label="Expected behavior"
+              required
+              variant="outline"
+              rows={4}
+              placeholder="What should happen?"
+              bind:value={report.expected}
+            />
+
+            <TextArea
+              label="Actual behavior"
+              required
+              variant="outline"
+              rows={4}
+              placeholder="What actually happened instead?"
+              bind:value={report.actual}
+            />
+          </div>
+        </div>
+      </Card>
+
+      <Card padding="lg">
+        <div class="space-y-4">
+          <div class="flex items-center justify-between gap-2">
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-ink-soft">
+              4. Environment &amp; Context
+            </h2>
+            <Button variant="ghost" size="sm" on:click={autoDetectEnv}>
+              Auto-detect
+            </Button>
+          </div>
+
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <SelectField
+              label="Environment"
+              variant="outline"
+              options={ENV_OPTIONS}
+              bind:value={report.environment}
+            />
+
+            <TextField
+              label="Device / Browser"
+              variant="outline"
+              bind:value={report.device}
+            />
+
+            <TextField
+              label="URL / Build / Commit"
+              variant="outline"
+              placeholder="https://... or v2.14.3"
+              bind:value={report.buildOrUrl}
+            />
+
+            <TextField
+              label="Reporter timezone"
+              variant="outline"
+              bind:value={report.timezone}
+            />
+          </div>
+
+          <TextArea
+            label="Console logs / Stack trace (optional)"
+            variant="outline"
+            rows={3}
+            placeholder="Paste relevant error output..."
+            bind:value={report.logs}
+          />
+        </div>
+      </Card>
+    </section>
+
+    <aside class="space-y-4 lg:sticky lg:top-20" aria-label="Shareable output">
+      <Card padding="lg">
+        <div class="space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-ink-soft">
+              One-Click Handoff
+            </h2>
+            {#if completeness.ready}
+              <Badge tone="success">Async-ready</Badge>
+            {:else}
+              <Badge tone="warning">Missing: {completeness.missing.join(', ')}</Badge>
+            {/if}
+          </div>
+
+          <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+            <Button
+              variant="primary"
+              size="md"
+              full
+              on:click={() => copyText(slackOutput, 'slack')}
+            >
+              {#if copiedFormat === 'slack'}
+                <Check class="h-4 w-4 shrink-0" />
+                <span>Copied Slack!</span>
+              {:else}
+                <MessageSquare class="h-4 w-4 shrink-0" />
+                <span>Copy Slack</span>
+              {/if}
+            </Button>
+
+            <Button
+              variant="secondary"
+              size="md"
+              full
+              on:click={() => copyText(markdownOutput, 'markdown')}
+            >
+              {#if copiedFormat === 'markdown'}
+                <Check class="h-4 w-4 shrink-0" />
+                <span>Copied MD!</span>
+              {:else}
+                <FileText class="h-4 w-4 shrink-0" />
+                <span>Copy Markdown</span>
+              {/if}
+            </Button>
+          </div>
+
+          <div class="space-y-2.5 rounded-ui border border-line bg-canvas p-3">
+            <SelectField
+              label="Target GitHub repository"
+              variant="outline"
+              size="sm"
+              options={REPO_OPTIONS}
+              bind:value={selectedRepo}
+            />
+            {#if selectedRepo === 'custom'}
+              <TextField
+                label="Custom owner/repo"
+                variant="outline"
+                size="sm"
+                placeholder="owner/repository"
+                bind:value={customRepo}
+              />
+            {/if}
+            <Button variant="secondary" size="sm" full on:click={openGitHubIssue}>
+              <ExternalLink class="h-3.5 w-3.5 shrink-0" />
+              <span>Open GitHub Issue</span>
+            </Button>
+          </div>
+
+          <Separator />
+
+          <Tabs items={previewTabs} bind:value={previewTab} label="Output format">
+            <svelte:fragment slot="panel" let:active>
+              <div class="mt-3">
+                <div class="mb-2 flex items-center justify-between">
+                  <span class="text-xs text-ink-faint">
+                    {active === 'slack' ? 'Slack mrkdwn preview' : 'GitHub / Linear Markdown'}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    on:click={() => copyText(active === 'slack' ? slackOutput : markdownOutput, active)}
+                  >
+                    <Copy class="h-3.5 w-3.5" />
+                    <span>Copy</span>
+                  </Button>
+                </div>
+
+                <pre class="max-h-[420px] overflow-auto whitespace-pre-wrap break-words rounded-ui border border-line bg-canvas p-3.5 font-mono text-xs leading-relaxed text-ink">{active === 'slack' ? slackOutput : markdownOutput}</pre>
+              </div>
+            </svelte:fragment>
+          </Tabs>
+
+          {#if !completeness.ready}
+            <Notice tone="info" title="Async handoff tip">
+              Adding {completeness.missing.join(' and ').toLowerCase()} saves a full day of back-and-forth across timezones.
+            </Notice>
+          {/if}
+        </div>
+      </Card>
+    </aside>
+  </main>
+
+  <Toaster />
+</div>
