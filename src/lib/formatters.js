@@ -76,7 +76,8 @@ export function createEmptyReport() {
     device: detectDeviceSummary(),
     timezone: detectTimezone(),
     buildOrUrl: '',
-    logs: ''
+    logs: '',
+    attachmentUrls: ''
   };
 }
 
@@ -96,7 +97,8 @@ export const EXAMPLE_REPORT = {
   device: 'Chrome on macOS (1440x900)',
   timezone: 'UTC+5 (Asia/Almaty)',
   buildOrUrl: 'https://app.example.com/checkout (v2.14.3)',
-  logs: 'Error: paymentIntent.amount must be >= 50\n  at createIntent (checkout.ts:142)'
+  logs: 'Error: paymentIntent.amount must be >= 50\n  at createIntent (checkout.ts:142)',
+  attachmentUrls: 'https://www.loom.com/share/example-checkout-repro'
 };
 
 function cleanSteps(steps) {
@@ -120,7 +122,14 @@ export function getCompleteness(report) {
   };
 }
 
-export function buildMarkdown(report) {
+function parseLinks(raw) {
+  return (raw || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+export function buildMarkdown(report, attachedFiles = []) {
   const title = report.title.trim() || 'Untitled bug report';
   const sev = report.severity.toUpperCase();
   const steps = cleanSteps(report.steps);
@@ -157,10 +166,18 @@ export function buildMarkdown(report) {
     sections.push('', '### Logs / Error', '```', report.logs.trim(), '```');
   }
 
+  const links = parseLinks(report.attachmentUrls);
+  if (links.length || attachedFiles.length) {
+    const attLines = [];
+    links.forEach((url) => attLines.push(`- ${url}`));
+    attachedFiles.forEach((f) => attLines.push(`- [ ] Attach local file: \`${f.name}\``));
+    sections.push('', '### Attachments', attLines.join('\n'));
+  }
+
   return sections.join('\n');
 }
 
-export function buildSlackSummary(report) {
+export function buildSlackSummary(report, attachedFiles = []) {
   const title = report.title.trim() || 'Untitled bug report';
   const sev = report.severity.toUpperCase();
   const area = report.area.trim() ? ` · ${report.area.trim()}` : '';
@@ -187,6 +204,16 @@ export function buildSlackSummary(report) {
   if (report.logs.trim()) {
     lines.push('```', report.logs.trim(), '```');
   }
+
+  const links = parseLinks(report.attachmentUrls);
+  if (links.length || attachedFiles.length) {
+    const items = [
+      ...links,
+      ...attachedFiles.map((f) => `attach ${f.name}`)
+    ];
+    lines.push(`*Attachments:* ${items.join(' | ')}`);
+  }
+
   if (report.timezone.trim()) {
     lines.push(`_Async reporter TZ: ${report.timezone.trim()}_`);
   }

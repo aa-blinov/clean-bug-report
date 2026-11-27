@@ -3,6 +3,7 @@
     Badge,
     Button,
     Card,
+    FileUpload,
     Notice,
     SegmentedControl,
     SelectField,
@@ -41,8 +42,27 @@
     getCompleteness
   } from './lib/formatters.js';
 
+  const DRAFT_KEY = 'clean-bug-report:draft:v1';
+
+  function loadInitialReport() {
+    const base = createEmptyReport();
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return base;
+      const parsed = JSON.parse(raw);
+      return {
+        ...base,
+        ...parsed,
+        steps: Array.isArray(parsed.steps) && parsed.steps.length ? parsed.steps : base.steps
+      };
+    } catch {
+      return base;
+    }
+  }
+
   let mode = 'light';
-  let report = createEmptyReport();
+  let report = loadInitialReport();
+  let attachedFiles = [];
   let previewTab = 'slack';
   let copiedFormat = '';
   let copiedTimer = null;
@@ -55,10 +75,18 @@
   let selectedRepo = urlRepo ? (presetMatch ? urlRepo : 'custom') : REPO_OPTIONS[0].value;
   let customRepo = urlRepo && !presetMatch ? urlRepo : '';
 
+  $: {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(report));
+    } catch {
+      // Ignore storage quota issues
+    }
+  }
+
   $: targetRepo = selectedRepo === 'custom' ? customRepo : selectedRepo;
   $: githubIssueUrl = buildGitHubIssueUrl(report, targetRepo);
-  $: markdownOutput = buildMarkdown(report);
-  $: slackOutput = buildSlackSummary(report);
+  $: markdownOutput = buildMarkdown(report, attachedFiles);
+  $: slackOutput = buildSlackSummary(report, attachedFiles);
   $: completeness = getCompleteness(report);
 
   const previewTabs = [
@@ -84,6 +112,18 @@
   }
 
   function updateStep(index, value) {
+    if (value.includes('\n')) {
+      const lines = value
+        .split(/\r?\n/)
+        .map((l) => l.replace(/^\s*\d+[.)]\s*/, '').trim())
+        .filter(Boolean);
+      if (lines.length > 1) {
+        const next = [...report.steps];
+        next.splice(index, 1, ...lines);
+        report.steps = next;
+        return;
+      }
+    }
     const next = [...report.steps];
     next[index] = value;
     report.steps = next;
@@ -99,6 +139,12 @@
 
   function resetForm() {
     report = createEmptyReport();
+    attachedFiles = [];
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      // Ignore storage failures
+    }
     toast({ title: 'Cleared form', duration: 1800 });
   }
 
@@ -361,6 +407,30 @@
             rows={3}
             placeholder="Paste relevant error output..."
             bind:value={report.logs}
+          />
+        </div>
+      </Card>
+
+      <Card padding="lg">
+        <div class="space-y-4">
+          <h2 class="text-sm font-semibold uppercase tracking-wider text-ink-soft">
+            5. Attachments &amp; Media
+          </h2>
+
+          <TextArea
+            label="Screencast or screenshot URLs (Loom, Jam, Drive — one per line)"
+            variant="outline"
+            rows={2}
+            placeholder="https://www.loom.com/share/..."
+            bind:value={report.attachmentUrls}
+          />
+
+          <FileUpload
+            bind:files={attachedFiles}
+            accept="image/*,video/*,.log,.txt,.json"
+            label="Drop local screenshots, videos, or log files"
+            chooseLabel="Choose files"
+            hint="Static app: selected filenames are added to your report checklist so you remember to paste/drop them into Slack or GitHub."
           />
         </div>
       </Card>
