@@ -207,6 +207,32 @@
     toast({ title: t.toastEnv, duration: 2000 });
   }
 
+  function readFileAsBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = String(reader.result || '');
+        const comma = result.indexOf(',');
+        resolve(comma >= 0 ? result.slice(comma + 1) : '');
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function prepareAttachments() {
+    const MAX_SIZE = 2.5 * 1024 * 1024;
+    const valid = [];
+    for (const file of attachedFiles.slice(0, 4)) {
+      if (file.size > MAX_SIZE) continue;
+      const base64 = await readFileAsBase64(file);
+      if (base64) {
+        valid.push({ name: file.name, type: file.type, base64 });
+      }
+    }
+    return valid;
+  }
+
   async function submitTicket() {
     if (!githubIssueUrl) {
       toast({
@@ -236,6 +262,7 @@
     submitting = true;
     createdIssue = null;
     try {
+      const attachments = await prepareAttachments();
       const res = await fetch(TICKETS_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -244,6 +271,7 @@
           title: `[${report.severity.toUpperCase()}] ${report.title.trim()}`,
           body: markdownOutput,
           labels: ['bug'],
+          attachments,
           website: honeypot
         })
       });
