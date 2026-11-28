@@ -256,7 +256,7 @@
     <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
       <div class="min-w-0">
         <div class="flex items-center gap-2">
-          <h1 class="truncate text-base font-semibold tracking-tight text-ink sm:text-lg">
+          <h1 class="truncate text-sm font-semibold tracking-tight text-ink sm:text-lg">
             Clean Bug Report
           </h1>
           <span class="hidden sm:inline-flex">
@@ -570,7 +570,7 @@
             {/if}
           </div>
 
-          <div class="grid grid-cols-2 gap-2.5">
+          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Button
               variant="secondary"
               size="sm"
