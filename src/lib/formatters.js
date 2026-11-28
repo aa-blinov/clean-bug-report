@@ -1,22 +1,4 @@
-export const SEVERITY_OPTIONS = [
-  { value: 'blocker', label: 'Blocker' },
-  { value: 'high', label: 'High' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'low', label: 'Low' }
-];
-
-export const REPRO_RATE_OPTIONS = [
-  { value: 'always', label: 'Always' },
-  { value: 'intermittent', label: 'Intermittent' },
-  { value: 'once', label: 'Once' }
-];
-
-export const ENV_OPTIONS = [
-  { value: 'Production', label: 'Production' },
-  { value: 'Staging', label: 'Staging' },
-  { value: 'Preview / PR', label: 'Preview / PR' },
-  { value: 'Local', label: 'Local' }
-];
+import { TRANSLATIONS } from './i18n.js';
 
 export const REPO_OPTIONS = [
   { value: 'aa-blinov/clean-bug-report', label: 'aa-blinov/clean-bug-report' },
@@ -81,36 +63,24 @@ export function createEmptyReport() {
   };
 }
 
-export const EXAMPLE_REPORT = {
-  title: 'Checkout button stays disabled after applying 100% promo code',
-  severity: 'high',
-  area: 'Billing / Checkout',
-  reproducibility: 'always',
-  steps: [
-    'Open /checkout with any paid plan in cart',
-    'Enter promo code TEAMFREE100 and click Apply',
-    'Observe total drops to $0.00, then click Complete Order'
-  ],
-  expected: 'Order completes immediately without requesting card details when total is $0.00.',
-  actual: 'Complete Order button remains disabled and console logs "paymentIntent.amount must be >= 50".',
-  environment: 'Production',
-  device: 'Chrome on macOS (1440x900)',
-  timezone: 'UTC+5 (Asia/Almaty)',
-  buildOrUrl: 'https://app.example.com/checkout (v2.14.3)',
-  logs: 'Error: paymentIntent.amount must be >= 50\n  at createIntent (checkout.ts:142)',
-  attachmentUrls: 'https://www.loom.com/share/example-checkout-repro'
-};
-
 function cleanSteps(steps) {
   return steps.map((s) => s.trim()).filter(Boolean);
 }
 
-export function getCompleteness(report) {
+function parseLinks(raw) {
+  return (raw || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+export function getCompleteness(report, lang = 'en') {
+  const names = (TRANSLATIONS[lang] || TRANSLATIONS.en).fieldNames;
   const checks = [
-    { key: 'title', label: 'Title', ok: report.title.trim().length > 0 },
-    { key: 'steps', label: 'Repro steps', ok: cleanSteps(report.steps).length > 0 },
-    { key: 'expected', label: 'Expected', ok: report.expected.trim().length > 0 },
-    { key: 'actual', label: 'Actual', ok: report.actual.trim().length > 0 }
+    { key: 'title', label: names.title, ok: report.title.trim().length > 0 },
+    { key: 'steps', label: names.steps, ok: cleanSteps(report.steps).length > 0 },
+    { key: 'expected', label: names.expected, ok: report.expected.trim().length > 0 },
+    { key: 'actual', label: names.actual, ok: report.actual.trim().length > 0 }
   ];
   const filled = checks.filter((c) => c.ok).length;
   const missing = checks.filter((c) => !c.ok).map((c) => c.label);
@@ -122,84 +92,80 @@ export function getCompleteness(report) {
   };
 }
 
-function parseLinks(raw) {
-  return (raw || '')
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
-
-export function buildMarkdown(report, attachedFiles = []) {
-  const title = report.title.trim() || 'Untitled bug report';
+export function buildMarkdown(report, attachedFiles = [], lang = 'en') {
+  const t = (TRANSLATIONS[lang] || TRANSLATIONS.en).md;
+  const title = report.title.trim() || t.untitled;
   const sev = report.severity.toUpperCase();
   const steps = cleanSteps(report.steps);
   const stepsText = steps.length
     ? steps.map((s, i) => `${i + 1}. ${s}`).join('\n')
-    : '1. _No steps provided_';
+    : t.noSteps;
 
   const envLines = [
-    `- **Environment:** ${report.environment}`,
-    `- **Device / Viewport:** ${report.device.trim() || 'Not specified'}`,
-    `- **Reproducibility:** ${report.reproducibility}`
+    `- **${t.envField}:** ${report.environment}`,
+    `- **${t.deviceField}:** ${report.device.trim() || '—'}`,
+    `- **${t.reproField}:** ${report.reproducibility}`
   ];
-  if (report.area.trim()) envLines.push(`- **Area:** ${report.area.trim()}`);
-  if (report.buildOrUrl.trim()) envLines.push(`- **URL / Build:** ${report.buildOrUrl.trim()}`);
-  if (report.timezone.trim()) envLines.push(`- **Reporter TZ:** ${report.timezone.trim()}`);
+  if (report.area.trim()) envLines.push(`- **${t.areaField}:** ${report.area.trim()}`);
+  if (report.buildOrUrl.trim()) envLines.push(`- **${t.urlField}:** ${report.buildOrUrl.trim()}`);
+  if (report.timezone.trim()) envLines.push(`- **${t.tzField}:** ${report.timezone.trim()}`);
 
   const sections = [
     `## [${sev}] ${title}`,
     '',
-    '### Steps to Reproduce',
+    `### ${t.steps}`,
     stepsText,
     '',
-    '### Expected Behavior',
-    report.expected.trim() || '_Not specified_',
+    `### ${t.expected}`,
+    report.expected.trim() || t.notSpecified,
     '',
-    '### Actual Behavior',
-    report.actual.trim() || '_Not specified_',
+    `### ${t.actual}`,
+    report.actual.trim() || t.notSpecified,
     '',
-    '### Environment',
+    `### ${t.env}`,
     envLines.join('\n')
   ];
 
   if (report.logs.trim()) {
-    sections.push('', '### Logs / Error', '```', report.logs.trim(), '```');
+    sections.push('', `### ${t.logs}`, '```', report.logs.trim(), '```');
   }
 
   const links = parseLinks(report.attachmentUrls);
   if (links.length || attachedFiles.length) {
     const attLines = [];
     links.forEach((url) => attLines.push(`- ${url}`));
-    attachedFiles.forEach((f) => attLines.push(`- [ ] Attach local file: \`${f.name}\``));
-    sections.push('', '### Attachments', attLines.join('\n'));
+    attachedFiles.forEach((f) => attLines.push(`- [ ] ${t.attachFile(f.name)}`));
+    sections.push('', `### ${t.attachments}`, attLines.join('\n'));
   }
 
   return sections.join('\n');
 }
 
-export function buildSlackSummary(report, attachedFiles = []) {
-  const title = report.title.trim() || 'Untitled bug report';
+export function buildSlackSummary(report, attachedFiles = [], lang = 'en') {
+  const tMd = (TRANSLATIONS[lang] || TRANSLATIONS.en).md;
+  const t = (TRANSLATIONS[lang] || TRANSLATIONS.en).slack;
+  const title = report.title.trim() || tMd.untitled;
   const sev = report.severity.toUpperCase();
   const area = report.area.trim() ? ` · ${report.area.trim()}` : '';
   const steps = cleanSteps(report.steps);
 
   const lines = [
     `*[${sev}] ${title}*`,
-    `_${report.environment}${area} · Repro: ${report.reproducibility} · ${report.device.trim() || 'Browser'}_`,
+    `_${report.environment}${area} · ${t.reproMeta}: ${report.reproducibility} · ${report.device.trim() || 'Browser'}_`,
     ''
   ];
 
   if (steps.length) {
-    lines.push('*Repro:*');
+    lines.push(`*${t.repro}*`);
     steps.forEach((s, i) => lines.push(`${i + 1}. ${s}`));
     lines.push('');
   }
 
-  lines.push(`*Expected:* ${report.expected.trim() || '—'}`);
-  lines.push(`*Actual:* ${report.actual.trim() || '—'}`);
+  lines.push(`*${t.expected}* ${report.expected.trim() || '—'}`);
+  lines.push(`*${t.actual}* ${report.actual.trim() || '—'}`);
 
   if (report.buildOrUrl.trim()) {
-    lines.push(`*Context:* ${report.buildOrUrl.trim()}`);
+    lines.push(`*${t.context}* ${report.buildOrUrl.trim()}`);
   }
   if (report.logs.trim()) {
     lines.push('```', report.logs.trim(), '```');
@@ -209,25 +175,26 @@ export function buildSlackSummary(report, attachedFiles = []) {
   if (links.length || attachedFiles.length) {
     const items = [
       ...links,
-      ...attachedFiles.map((f) => `attach ${f.name}`)
+      ...attachedFiles.map((f) => t.attachFile(f.name))
     ];
-    lines.push(`*Attachments:* ${items.join(' | ')}`);
+    lines.push(`*${t.attachments}* ${items.join(' | ')}`);
   }
 
   if (report.timezone.trim()) {
-    lines.push(`_Async reporter TZ: ${report.timezone.trim()}_`);
+    lines.push(`_${t.tz(report.timezone.trim())}_`);
   }
 
   return lines.join('\n');
 }
 
-export function buildGitHubIssueUrl(report, repoSlug) {
+export function buildGitHubIssueUrl(report, repoSlug, lang = 'en') {
   const cleanRepo = (repoSlug || '').trim().replace(/^https?:\/\/github\.com\//, '').replace(/\/+$/, '');
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(cleanRepo)) {
     return null;
   }
-  const title = `[${report.severity.toUpperCase()}] ${report.title.trim() || 'Bug report'}`;
-  const body = buildMarkdown(report).slice(0, 6000);
+  const tMd = (TRANSLATIONS[lang] || TRANSLATIONS.en).md;
+  const title = `[${report.severity.toUpperCase()}] ${report.title.trim() || tMd.untitled}`;
+  const body = buildMarkdown(report, [], lang).slice(0, 6000);
   const params = new URLSearchParams({
     title,
     body,

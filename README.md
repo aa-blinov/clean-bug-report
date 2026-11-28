@@ -29,7 +29,8 @@ npm run dev
 
 | Parameter | Default | Description |
 | --- | --- | --- |
-| `?repo=<owner/name>` | `aa-blinov/clean-bug-report` | Pre-selects the target repository for **Open GitHub Issue** |
+| `?repo=<owner/name>` | `aa-blinov/clean-bug-report` | Pre-selects the target repository for **Create Ticket** |
+| `?lang=<en\|ru>` | `en` | Sets the initial UI & output language (persisted in `localStorage`) |
 | Color mode toggle | `dark` | Switches `@monos/ui` `data-mode` between `dark` and `light` (persisted in `localStorage`) |
 
 ## How it works
