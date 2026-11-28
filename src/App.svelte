@@ -43,6 +43,17 @@
   } from './lib/formatters.js';
 
   const DRAFT_KEY = 'clean-bug-report:draft:v1';
+  const MODE_KEY = 'clean-bug-report:mode';
+
+  function loadInitialMode() {
+    try {
+      const saved = localStorage.getItem(MODE_KEY);
+      if (saved === 'light' || saved === 'dark') return saved;
+    } catch {
+      // Ignore storage errors
+    }
+    return 'dark';
+  }
 
   function loadInitialReport() {
     const base = createEmptyReport();
@@ -60,7 +71,10 @@
     }
   }
 
-  let mode = 'light';
+  let mode = loadInitialMode();
+  if (typeof document !== 'undefined') {
+    document.documentElement.setAttribute('data-mode', mode);
+  }
   let report = loadInitialReport();
   let attachedFiles = [];
   let previewTab = 'slack';
@@ -103,6 +117,11 @@
   function toggleMode() {
     mode = mode === 'light' ? 'dark' : 'light';
     document.documentElement.setAttribute('data-mode', mode);
+    try {
+      localStorage.setItem(MODE_KEY, mode);
+    } catch {
+      // Ignore storage errors
+    }
   }
 
   function addStep() {

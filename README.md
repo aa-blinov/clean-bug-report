@@ -30,7 +30,7 @@ npm run dev
 | Parameter | Default | Description |
 | --- | --- | --- |
 | `?repo=<owner/name>` | `aa-blinov/clean-bug-report` | Pre-selects the target repository for **Open GitHub Issue** |
-| Color mode toggle | `light` | Switches `@monos/ui` `data-mode` between `light` and `dark` |
+| Color mode toggle | `dark` | Switches `@monos/ui` `data-mode` between `dark` and `light` (persisted in `localStorage`) |
 
 ## How it works
 
