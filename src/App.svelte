@@ -354,7 +354,7 @@
           <TextField
             label={t.bugTitleLabel}
             required
-            variant="outline"
+            variant="boxed"
             placeholder={t.bugTitlePlaceholder}
             bind:value={report.title}
           />
@@ -385,7 +385,7 @@
 
           <TextField
             label={t.areaLabel}
-            variant="outline"
+            variant="boxed"
             placeholder={t.areaPlaceholder}
             bind:value={report.area}
           />
@@ -417,7 +417,7 @@
                 </span>
                 <div class="min-w-0 flex-1">
                   <TextField
-                    variant="outline"
+                    variant="boxed"
                     size="sm"
                     placeholder={i === 0 ? t.stepPlaceholder0 : i === 1 ? t.stepPlaceholder1 : t.stepPlaceholderN}
                     value={step}
@@ -449,18 +449,20 @@
 
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <TextArea
+              class="min-w-0"
               label={t.expectedLabel}
               required
-              variant="outline"
+              variant="boxed"
               rows={4}
               placeholder={t.expectedPlaceholder}
               bind:value={report.expected}
             />
 
             <TextArea
+              class="min-w-0"
               label={t.actualLabel}
               required
-              variant="outline"
+              variant="boxed"
               rows={4}
               placeholder={t.actualPlaceholder}
               bind:value={report.actual}
@@ -482,35 +484,39 @@
 
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <SelectField
+              class="min-w-0"
               label={t.envLabel}
-              variant="outline"
+              variant="boxed"
               options={t.envOptions}
               bind:value={report.environment}
             />
 
             <TextField
+              class="min-w-0"
               label={t.deviceLabel}
-              variant="outline"
+              variant="boxed"
               bind:value={report.device}
             />
 
             <TextField
+              class="min-w-0"
               label={t.buildLabel}
-              variant="outline"
+              variant="boxed"
               placeholder={t.buildPlaceholder}
               bind:value={report.buildOrUrl}
             />
 
             <TextField
+              class="min-w-0"
               label={t.timezoneLabel}
-              variant="outline"
+              variant="boxed"
               bind:value={report.timezone}
             />
           </div>
 
           <TextArea
             label={t.logsLabel}
-            variant="outline"
+            variant="boxed"
             rows={3}
             placeholder={t.logsPlaceholder}
             bind:value={report.logs}
@@ -526,7 +532,7 @@
 
           <TextArea
             label={t.urlsLabel}
-            variant="outline"
+            variant="boxed"
             rows={2}
             placeholder={t.urlsPlaceholder}
             bind:value={report.attachmentUrls}
@@ -562,7 +568,7 @@
             {#if showRepoPicker}
               <SelectField
                 label={t.targetRepoLabel}
-                variant="outline"
+                variant="boxed"
                 size="sm"
                 options={REPO_OPTIONS}
                 bind:value={selectedRepo}
@@ -570,7 +576,7 @@
               {#if selectedRepo === 'custom'}
                 <TextField
                   label={t.customRepoLabel}
-                  variant="outline"
+                  variant="boxed"
                   size="sm"
                   placeholder="owner/repository"
                   bind:value={customRepo}
